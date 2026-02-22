@@ -7,7 +7,7 @@
     <img src="https://img.shields.io/badge/Install_from-GreasyFork-0066cc?style=flat-square&logo=greasyfork&logoColor=white" alt="Install from Greasy Fork">
   </a>
   <a href="https://github.com/ghostlybliss/Photopea-Fullscreen-2026/releases">
-    <img src="https://img.shields.io/badge/version-1.1.9-0066cc?style=flat-square&labelColor=111" alt="Version 1.1.9">
+    <img src="https://img.shields.io/badge/version-1.2.0-0066cc?style=flat-square&labelColor=111" alt="Version 1.2.0">
   </a>
   <a href="LICENSE">
     <img src="https://img.shields.io/badge/license-MIT-0066cc?style=flat-square&labelColor=111" alt="MIT License">
