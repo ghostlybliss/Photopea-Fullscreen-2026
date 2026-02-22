@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name        Photopea True Fullscreen
 // @namespace   https://github.com/ghostlybliss
-// @version     1.1.9
-// @description Compact theme menu below; performance optimizations and reliability fixes.
+// @version     1.2.0
+// @description Compact theme menu below; Edge-optimized with aggressive width spoof + sidebar hijacker.
 // @author      ghostlybliss
 // @match       https://www.photopea.com/*
 // @match       https://photopea.com/*
@@ -38,20 +38,134 @@
     updateMenuActive(theme.id);
   }
 
-  /* ========================= WIDTH SPOOF ========================== */
+  /* ========================= WIDTH SPOOF (EDGE-OPTIMIZED) ========================== */
   let baseWidth = 1920;
+  let spoofIntervalId = null;
+
   function calculateBaseWidth() {
     const d = document.documentElement;
     return (d && (d.clientWidth || d.offsetWidth)) || baseWidth;
   }
-  function updateBaseWidth() { baseWidth = calculateBaseWidth(); try { window.dispatchEvent(new Event('resize')); } catch (e) {} }
-  try {
-    Object.defineProperty(window, 'innerWidth', { get: () => baseWidth + SPOOF_ADD, configurable: true });
-    Object.defineProperty(window, 'outerWidth', { get: () => baseWidth + SPOOF_ADD + 60, configurable: true });
-    if (window.screen) Object.defineProperty(window.screen, 'width', { get: () => baseWidth + SPOOF_ADD, configurable: true });
-  } catch (e) { console.warn('[ptf] width spoof failed', e); }
-  updateBaseWidth();
-  requestAnimationFrame(updateBaseWidth);
+
+  function applySpoofImmediately() {
+    baseWidth = calculateBaseWidth();
+    try {
+      Object.defineProperty(window, 'innerWidth', {
+        get: () => baseWidth + SPOOF_ADD,
+        configurable: true
+      });
+      Object.defineProperty(window, 'outerWidth', {
+        get: () => baseWidth + SPOOF_ADD + 60,
+        configurable: true
+      });
+      if (window.screen) {
+        Object.defineProperty(window.screen, 'width', {
+          get: () => baseWidth + SPOOF_ADD,
+          configurable: true
+        });
+      }
+    } catch (e) {
+      console.warn('[ptf] width spoof failed', e);
+    }
+    try {
+      window.dispatchEvent(new Event('resize'));
+    } catch (e) {}
+  }
+
+  // AGGRESSIVE ENFORCEMENT: Re-apply spoof every 150ms for first 5 seconds
+  // This catches Edge trying to re-read the width after page load
+  function enforceAggressiveSpoof() {
+    applySpoofImmediately();
+    let attempts = 0;
+    spoofIntervalId = setInterval(() => {
+      attempts++;
+      applySpoofImmediately();
+      if (attempts >= 33) {
+        clearInterval(spoofIntervalId);
+        spoofIntervalId = null;
+      }
+    }, 150);
+  }
+
+  // Fallback: periodic re-enforcement after aggressive phase
+  function enforceLongTermSpoof() {
+    setInterval(() => {
+      baseWidth = calculateBaseWidth();
+    }, 1000);
+  }
+
+  applySpoofImmediately();
+  enforceAggressiveSpoof();
+  enforceLongTermSpoof();
+
+  /* ========================= SIDEBAR HIJACKER (EDGE FALLBACK) ========================== */
+  // If Photopea still creates a sidebar despite width spoof, this will remove it
+  const SIDEBAR_SELECTORS = ['.right-panel.ads', '.right-ad-panel', '.ad-sidebar', '[class*="ad-"]', '.sidebar-ads'];
+  const MONITORED_CONTAINERS = ['.flexrow.app', '.pp-app', 'body', 'html'];
+  const removedSidebars = new Set();
+
+  function removeSidebar() {
+    let removed = false;
+    for (const sel of SIDEBAR_SELECTORS) {
+      document.querySelectorAll(sel).forEach(el => {
+        if (!removedSidebars.has(el)) {
+          try {
+            el.style.display = 'none !important';
+            el.remove && el.remove();
+            removedSidebars.add(el);
+            removed = true;
+            console.log('[ptf] removed ad sidebar element:', sel);
+          } catch (e) {}
+        }
+      });
+    }
+
+    // Also check for any elements with suspicious sizing (320px width = typical ad space)
+    const allEls = document.querySelectorAll('[style*="width: 320"], [style*="width:320"], [style*="flex-basis: 320"], [style*="min-width: 320"]');
+    allEls.forEach(el => {
+      const rect = el.getBoundingClientRect();
+      if (rect.width > 300 && rect.width < 340 && (rect.right === rect.width || rect.left === window.innerWidth - rect.width)) {
+        if (!removedSidebars.has(el)) {
+          try {
+            el.style.display = 'none !important';
+            removedSidebars.add(el);
+            removed = true;
+            console.log('[ptf] removed suspicious sidebar:', el);
+          } catch (e) {}
+        }
+      }
+    });
+
+    return removed;
+  }
+
+  // Run sidebar removal on a schedule
+  const sidebarCheckId = setInterval(() => {
+    removeSidebar();
+  }, 500);
+
+  // Also listen for DOM changes and check immediately
+  const sidebarObserver = new MutationObserver(() => {
+    removeSidebar();
+  });
+
+  function startSidebarWatcher() {
+    try {
+      sidebarObserver.observe(document.documentElement, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['style', 'class']
+      });
+    } catch (e) {}
+  }
+
+  // Run initial sidebar removal
+  removeSidebar();
+  setTimeout(removeSidebar, 100);
+  setTimeout(removeSidebar, 300);
+  setTimeout(removeSidebar, 800);
+  setTimeout(() => { startSidebarWatcher(); removeSidebar(); }, 1000);
 
   /* ========================= STYLES (bottom-left eye & compact menu) ========================== */
   const css = `
@@ -291,11 +405,10 @@ body, html, .flexrow.app { background: var(--pp-bg) !important; color: var(--pp-
 
     startObservingBody();
 
-    console.log('%c[ptf] Photopea True Fullscreen v1.1.9 — compact theme menu below; optimized and ready.', 'color:#ff7a00;font-weight:bold;');
+    console.log('%c[ptf] Photopea True Fullscreen v1.2.0 — Edge-optimized with aggressive width spoof + sidebar hijacker.', 'color:#ff7a00;font-weight:bold;');
   }
 
   if (document.readyState === 'complete' || document.readyState === 'interactive') requestAnimationFrame(init);
   else window.addEventListener('DOMContentLoaded', () => requestAnimationFrame(init), { once: true });
 
 })();
-
