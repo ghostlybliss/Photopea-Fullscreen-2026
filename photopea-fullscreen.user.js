@@ -9,10 +9,10 @@
 // @run-at       document-start
 // @grant        none
 // @license      MIT
-// @homepageURL  https://github.com/ghostlybliss/photopea-fullscreen
-// @supportURL   https://github.com/ghostlybliss/photopea-fullscreen/issues
-// @downloadURL  https://raw.githubusercontent.com/ghostlybliss/photopea-fullscreen/main/photopea-fullscreen.user.js
-// @updateURL    https://raw.githubusercontent.com/ghostlybliss/photopea-fullscreen/main/photopea-fullscreen.user.js
+// @homepageURL  https://github.com/ghostlybliss/Photopea-Fullscreen-2026
+// @supportURL   https://github.com/ghostlybliss/Photopea-Fullscreen-2026/issues
+// @downloadURL  https://raw.githubusercontent.com/ghostlybliss/Photopea-Fullscreen-2026/main/photopea-fullscreen.user.js
+// @updateURL    https://raw.githubusercontent.com/ghostlybliss/Photopea-Fullscreen-2026/main/photopea-fullscreen.user.js
 // ==/UserScript==
 
 /*
@@ -94,3 +94,4 @@
     console.log('%c[ghostlybliss] Photopea True Fullscreen v1.1 — reinforced & instant on Microsoft Edge & Opera GX', 'color:#00ff9d;font-weight:bold;');
 
 })();
+
