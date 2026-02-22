@@ -4,7 +4,7 @@
 
 # Photopea True Fullscreen
 
-**Removes the gray ad sidebar on [Photopea.com](https://www.photopea.com)** No crashes. No blank pages. No anti-tamper banners. Just the editor, edge to edge.
+**Removes the gray ad sidebar on [Photopea.com](https://www.photopea.com)** Works with & without adblockers.
 
 [![Version](https://img.shields.io/badge/version-1.0-00ff9d?style=flat-square&labelColor=111)](https://github.com/ghostlybliss/photopea-fullscreen)
 [![License](https://img.shields.io/badge/license-MIT-00ff9d?style=flat-square&labelColor=111)](LICENSE)
