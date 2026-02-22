@@ -5,16 +5,16 @@
   Works with & without adblockers.</p>
 
   <a href="https://greasyfork.org/en/scripts/567062-photopea-true-fullscreen">
-    <img src="https://img.shields.io/badge/Install_from-GreasyFork-00ff9d?style=flat-square&logo=greasyfork&logoColor=white" alt="Install from Greasy Fork">
+    <img src="https://img.shields.io/badge/Install_from-GreasyFork-0066cc?style=flat-square&logo=greasyfork&logoColor=white" alt="Install from Greasy Fork">
   </a>
   <a href="https://github.com/ghostlybliss/Photopea-Fullscreen-2026/releases">
-    <img src="https://img.shields.io/badge/version-1.1.9-00ff9d?style=flat-square&labelColor=111" alt="Version 1.1.9">
+    <img src="https://img.shields.io/badge/version-1.1.9-0066cc?style=flat-square&labelColor=111" alt="Version 1.1.9">
   </a>
   <a href="LICENSE">
-    <img src="https://img.shields.io/badge/license-MIT-00ff9d?style=flat-square&labelColor=111" alt="MIT License">
+    <img src="https://img.shields.io/badge/license-MIT-0066cc?style=flat-square&labelColor=111" alt="MIT License">
   </a>
   <a href="https://www.tampermonkey.net">
-    <img src="https://img.shields.io/badge/Tampermonkey-compatible-00ff9d?style=flat-square&labelColor=111" alt="Tampermonkey compatible">
+    <img src="https://img.shields.io/badge/Tampermonkey-compatible-0066cc?style=flat-square&labelColor=111" alt="Tampermonkey compatible">
   </a>
 </div>
 
@@ -32,7 +32,7 @@ No CSS overrides. No visual hacks. No layout flicker.
 ## Install
 
 ### Option 1 — One-Click (Recommended)
-[![Install from Greasy Fork](https://img.shields.io/badge/Install_from-GreasyFork-00ff9d?style=for-the-badge&logo=greasyfork&logoColor=white)](https://greasyfork.org/en/scripts/567062-photopea-true-fullscreen)
+[![Install from Greasy Fork](https://img.shields.io/badge/Install_from-GreasyFork-0066cc?style=for-the-badge&logo=greasyfork&logoColor=white)](https://greasyfork.org/en/scripts/567062-photopea-true-fullscreen)
 
 ### Option 2 — Direct from GitHub
 [Click here to install](https://raw.githubusercontent.com/ghostlybliss/Photopea-Fullscreen-2026/main/photopea-fullscreen.user.js)
