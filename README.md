@@ -20,7 +20,7 @@
 
 ---
 
-<img width="2559" height="1237" alt="Photopea True Fullscreen — clean editor" 
+<img width="2557" height="1240" alt="Screenshot 2026-02-22 001846" src="https://github.com/user-attachments/assets/9c3b7f8b-1581-460e-8009-8703dd12e0e6" />
      src="https://github.com/user-attachments/assets/486ba41b-40cd-4024-9bb6-c21be97045c8" />
 
 **Photopea reserves a ~320px column on the right (sometimes left) for ads — even when you have an adblocker.**  
@@ -73,5 +73,3 @@ If you enjoy Photopea, please support the original project by subscribing to Pho
 - Repository: https://github.com/ghostlybliss/Photopea-Fullscreen-2026e  
 - Issues: https://github.com/ghostlybliss/Photopea-Fullscreen-2026e/issues  
 - Greasy Fork: https://greasyfork.org/en/scripts/567062-photopea-true-fullscreen  
-
-Enjoy your clean Photopea.
