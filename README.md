@@ -1,6 +1,6 @@
 <div align="center">
   <img src="https://www.photopea.com/promo/icon512.png" width="72" alt="Photopea"/>
-  <h1>Photopea True Fullscreen</h1>
+  <h1>Photopea Fullscreen</h1>
   <p><strong>Removes the gray ad sidebar on Photopea.com</strong><br>
   Works with & without adblockers.</p>
 
