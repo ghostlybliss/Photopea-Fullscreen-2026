@@ -57,7 +57,7 @@ The result is a clean, true fullscreen workspace with zero layout conflicts.
 
 ## Attribution & Disclaimer
 
-Photopea and its creator Ivan Kutskir own all rights to the Photopea service and branding.  
+[Photopea](https://www.photopea.com/) and its creator Ivan Kutskir own all rights to the Photopea service and branding.  
 This project is an independent, unofficial userscript that modifies client-side behavior only. It is not affiliated with, endorsed by, or distributed by the original project.
 
 If the owner or maintainers of Photopea have any concerns, please open an issue on this repository or contact me directly at `ghostlybliss@gmail.com`. Requests will be addressed promptly, including removal if requested.
