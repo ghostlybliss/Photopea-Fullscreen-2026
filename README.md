@@ -1,17 +1,22 @@
 <div align="center">
   <img src="https://www.photopea.com/promo/icon512.png" width="72" alt="Photopea"/>
-  <h1>Photopea Fullscreen</h1>
-  <p><strong>Enables Fullscreen on Photopea.com</strong><br>
-  
+
+  <h1>Photopea True Fullscreen</h1>
+
+  <p><strong>Let Photopea use the whole damn window.</strong></p>
+
   <a href="https://greasyfork.org/en/scripts/567062-photopea-true-fullscreen">
     <img src="https://img.shields.io/badge/Install_from-GreasyFork-0066cc?style=flat-square&logo=greasyfork&logoColor=white" alt="Install from Greasy Fork">
   </a>
+
   <a href="https://github.com/ghostlybliss/Photopea-Fullscreen-2026/releases">
-    <img src="https://img.shields.io/badge/version-1.2.0-0066cc?style=flat-square&labelColor=111" alt="Version 1.2.0">
+    <img src="https://img.shields.io/badge/version-1.4.0-0066cc?style=flat-square&labelColor=111" alt="Version 1.4.0">
   </a>
+
   <a href="LICENSE">
     <img src="https://img.shields.io/badge/license-MIT-0066cc?style=flat-square&labelColor=111" alt="MIT License">
   </a>
+
   <a href="https://www.tampermonkey.net">
     <img src="https://img.shields.io/badge/Tampermonkey-compatible-0066cc?style=flat-square&labelColor=111" alt="Tampermonkey compatible">
   </a>
@@ -19,43 +24,62 @@
 
 ---
 
-![Photopea True Fullscreen](https://github.com/user-attachments/assets/9c3b7f8b-1581-460e-8009-8703dd12e0e6)
+![Photopea True Fullscreen](photopea-fullscreen.png)
 
-**Photopea reserves a ~320px column on the right (sometimes left) for ads — even when you have an adblocker.**  
-This userscript prevents the space from ever being allocated by spoofing the browser width threshold.
+Photopea can reserve a large empty section on the right side of the window.
 
+This userscript makes Photopea use that space instead.
+
+There is little reason to surrender perfectly good screen space to nothing.
+
+---
+
+## Features
+
+- Full-width Photopea workspace
+- Removes the reserved area on the right
+- Tested on Microsoft Edge and Brave
+- Re-applies the layout after tab switching, refocusing, and resizing
+- Keeps the width spoof active during long sessions
+- Hides Photopea's specific `"Something is changing our source code"` warning when triggered by the script
+- No themes
+- No UI recoloring
+- No external libraries
 
 ---
 
 ## Install
 
-### Option 1 — One-Click (Recommended)
+### Greasy Fork
+
 [![Install from Greasy Fork](https://img.shields.io/badge/Install_from-GreasyFork-0066cc?style=for-the-badge&logo=greasyfork&logoColor=white)](https://greasyfork.org/en/scripts/567062-photopea-true-fullscreen)
 
-### Option 2 — Direct from GitHub
-[Click here to install](https://raw.githubusercontent.com/ghostlybliss/Photopea-Fullscreen-2026/main/photopea-fullscreen.user.js)
+### GitHub
 
-### Option 3 — Manual
-1. Open Tampermonkey / Violentmonkey  
-2. Create a new script  
-3. Paste `photopea-fullscreen.user.js`  
-4. Ctrl + S to Save
+[Install the latest userscript](https://raw.githubusercontent.com/ghostlybliss/Photopea-Fullscreen-2026/main/photopea-fullscreen.user.js)
 
----
+### Manual
 
-## Attribution & Disclaimer
-
-[Photopea](https://www.photopea.com/) and its creator Ivan Kutskir own all rights to the Photopea service and branding.  
-This project is an independent, unofficial userscript that modifies client-side behavior only. It is not affiliated with, endorsed by, or distributed by the original project.
-
-If the owner or maintainers of Photopea have any concerns, please open an issue on this repository or contact me directly at `ghostlybliss@gmail.com`. Requests will be addressed promptly, including removal if requested.
-
-If you enjoy Photopea, please support the original project by subscribing to Photopea's Premium membership.
+1. Install Tampermonkey or Violentmonkey
+2. Create a new userscript
+3. Paste in `photopea-fullscreen.user.js`
+4. Save
+5. Open Photopea
 
 ---
 
-## Source Code & Support
+## How It Works
 
-- Repository: https://github.com/ghostlybliss/Photopea-Fullscreen-2026  
-- Issues: https://github.com/ghostlybliss/Photopea-Fullscreen-2026/issues  
-- Greasy Fork: https://greasyfork.org/en/scripts/567062-photopea-true-fullscreen
+Photopea checks the browser width when deciding how much horizontal space to reserve.
+
+This script changes the value Photopea sees through `window.innerWidth`, so the workspace is laid out across the full visible window.
+
+The basic idea is:
+
+```js
+Object.defineProperty(window, 'innerWidth', {
+    get() {
+        return realViewportWidth + 320;
+    },
+    configurable: true
+});
