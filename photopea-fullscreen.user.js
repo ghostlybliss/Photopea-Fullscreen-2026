@@ -1,157 +1,854 @@
 // ==UserScript==
-// @name        Photopea True Fullscreen
-// @namespace   https://github.com/ghostlybliss
-// @version     1.2.1
-// @description Width spoof + theme menu. No DOM manipulation, no layout interference.
-// @author      ghostlybliss
-// @match       https://www.photopea.com/*
-// @match       https://photopea.com/*
-// @run-at      document-start
-// @grant       none
-// @license     MIT
-// @icon        https://www.photopea.com/promo/icon512.png
-// @downloadURL https://update.greasyfork.org/scripts/567062/Photopea%20True%20Fullscreen.user.js
-// @updateURL   https://update.greasyfork.org/scripts/567062/Photopea%20True%20Fullscreen.meta.js
+// @name         Photopea True Fullscreen
+// @namespace    https://github.com/ghostlybliss
+// @version      1.4.0
+// @description  True fullscreen for Photopea with Edge / Chromium hardening and targeted warning suppression.
+// @author       ghostlybliss
+// @match        https://www.photopea.com/*
+// @match        https://photopea.com/*
+// @run-at       document-start
+// @grant        none
+// @sandbox      raw
+// @inject-into  page
+// @noframes
+// @license      MIT
+// @icon         https://www.photopea.com/promo/icon512.png
+// @downloadURL  https://update.greasyfork.org/scripts/567062/Photopea%20True%20Fullscreen.user.js
+// @updateURL    https://update.greasyfork.org/scripts/567062/Photopea%20True%20Fullscreen.meta.js
 // ==/UserScript==
 
 (function () {
   'use strict';
 
-  const THEME_KEY = 'photopea_fullscreen_theme_v1';
+  /* ============================================================
+     CONFIG
+     ============================================================ */
 
-  const THEMES = [
-    { id: 'snow',     name: 'SNOW',     vars: { '--pp-bg': '#0b0f10', '--pp-panel': '#0f1415', '--pp-accent': '#00ff9d', '--pp-text': '#e6f6f0', '--pp-muted': '#9ab6ac', '--pp-border': 'rgba(0,0,0,0.4)',       '--pp-shadow': '0 6px 24px rgba(0,0,0,0.6)'   } },
-    { id: 'midnight', name: 'MIDNIGHT', vars: { '--pp-bg': '#0a0c11', '--pp-panel': '#0f1720', '--pp-accent': '#6ea8fe', '--pp-text': '#dbe9ff', '--pp-muted': '#94a3b8', '--pp-border': 'rgba(255,255,255,0.04)', '--pp-shadow': '0 6px 24px rgba(2,6,23,0.75)' } },
-    { id: 'dark',     name: 'DARK',     vars: { '--pp-bg': '#07090c', '--pp-panel': '#11151a', '--pp-accent': '#ff7a00', '--pp-text': '#eaf6ff', '--pp-muted': '#7f95a6', '--pp-border': 'rgba(0,255,255,0.06)',   '--pp-shadow': '0 8px 40px rgba(0,0,0,0.85)'  } },
-    { id: 'matrix',   name: 'MATRIX',   vars: { '--pp-bg': '#020200', '--pp-panel': '#03110a', '--pp-accent': '#19ff08', '--pp-text': '#a8ffb7', '--pp-muted': '#4b8a4b', '--pp-border': 'rgba(0,255,0,0.06)',     '--pp-shadow': '0 6px 30px rgba(0,0,0,0.7)'   } }
-  ];
+  const SPOOF_EXTRA_WIDTH = 320;
 
-  /* SPOOF — identical to v1.0, re-enforced on DOMContentLoaded to beat race conditions */
+  /*
+    Capture the browser's real width before replacing innerWidth.
+    Used only as an extremely-early-startup fallback.
+  */
+  const INITIAL_REAL_WIDTH = window.innerWidth;
+
+
+  /* ============================================================
+     TRUE FULLSCREEN WIDTH SPOOF
+     ============================================================ */
+
+  function getRealViewportWidth() {
+    /*
+      visualViewport.width is not affected by our innerWidth spoof,
+      making it the preferred real viewport measurement.
+    */
+    try {
+      if (
+        window.visualViewport &&
+        Number.isFinite(window.visualViewport.width) &&
+        window.visualViewport.width > 0
+      ) {
+        return Math.round(window.visualViewport.width);
+      }
+    } catch (e) {}
+
+
+    /*
+      Standard document viewport fallback.
+    */
+    try {
+      if (
+        document.documentElement &&
+        document.documentElement.clientWidth > 0
+      ) {
+        return document.documentElement.clientWidth;
+      }
+    } catch (e) {}
+
+
+    /*
+      Secondary layout fallback.
+    */
+    try {
+      if (
+        document.documentElement &&
+        document.documentElement.offsetWidth > 0
+      ) {
+        return document.documentElement.offsetWidth;
+      }
+    } catch (e) {}
+
+
+    /*
+      Final fallback captured before the spoof existed.
+    */
+    return INITIAL_REAL_WIDTH;
+  }
+
+
+  function createSpoofGetter() {
+    const getter = function () {
+      return getRealViewportWidth() + SPOOF_EXTRA_WIDTH;
+    };
+
+    /*
+      Private marker used to recognize our own getter later.
+    */
+    getter.__ptfSpoof = true;
+
+    return getter;
+  }
+
+
   function applySpoof() {
     try {
+      const descriptor =
+        Object.getOwnPropertyDescriptor(window, 'innerWidth');
+
+
+      /*
+        If our getter is already installed, leave it alone.
+      */
+      if (
+        descriptor &&
+        typeof descriptor.get === 'function' &&
+        descriptor.get.__ptfSpoof
+      ) {
+        return true;
+      }
+
+
       Object.defineProperty(window, 'innerWidth', {
-        get() { return document.documentElement.offsetWidth + 320; },
-        configurable: true
+        get: createSpoofGetter(),
+        configurable: true,
+        enumerable: true
       });
+
+
+      return true;
+
+    } catch (e) {
+      console.warn(
+        '[ptf] Could not install innerWidth spoof:',
+        e
+      );
+
+      return false;
+    }
+  }
+
+
+  /* ============================================================
+     PHOTOPEA RELAYOUT
+     ============================================================ */
+
+  let relayoutQueued = false;
+
+
+  function forcePhotopeaRelayout() {
+    /*
+      Reinstate the spoof first in case Photopea, the browser,
+      or another script replaced it.
+    */
+    applySpoof();
+
+
+    /*
+      Collapse repeated relayout requests into one animation frame.
+    */
+    if (relayoutQueued) {
+      return;
+    }
+
+    relayoutQueued = true;
+
+
+    requestAnimationFrame(() => {
+      relayoutQueued = false;
+
+      try {
+        /*
+          Important for Edge:
+
+          If Photopea performed a layout calculation before our
+          spoof became active, changing innerWidth alone does not
+          necessarily force Photopea to reconsider the workspace.
+
+          Dispatching resize makes Photopea run its normal responsive
+          layout code while seeing the spoofed width.
+        */
+        window.dispatchEvent(
+          new Event('resize')
+        );
+
+      } catch (e) {}
+    });
+  }
+
+
+  /*
+    Install immediately.
+
+    @run-at document-start gives this the best possible chance of
+    beating Photopea's initial layout calculation.
+  */
+  applySpoof();
+
+
+  /* ============================================================
+     STARTUP HARDENING
+     ============================================================ */
+
+  /*
+    Edge / Chromium can execute page initialization in slightly
+    different timing windows.
+
+    These are temporary startup checks only. They naturally stop
+    after 6.5 seconds.
+  */
+
+  const STARTUP_RELAYOUT_DELAYS = [
+    0,
+    20,
+    50,
+    100,
+    200,
+    350,
+    600,
+    1000,
+    1500,
+    2500,
+    4000,
+    6500
+  ];
+
+
+  STARTUP_RELAYOUT_DELAYS.forEach(delay => {
+    setTimeout(
+      forcePhotopeaRelayout,
+      delay
+    );
+  });
+
+
+  /*
+    Reinforce after initial DOM construction.
+  */
+  document.addEventListener(
+    'DOMContentLoaded',
+    forcePhotopeaRelayout,
+    { once: true }
+  );
+
+
+  /*
+    Reinforce after normal page resources finish loading.
+  */
+  window.addEventListener(
+    'load',
+    forcePhotopeaRelayout,
+    { once: true }
+  );
+
+
+  /* ============================================================
+     TAB / WINDOW RESTORATION
+     ============================================================ */
+
+  /*
+    Chromium-family browsers can recalculate viewport or compositor
+    state when a backgrounded tab becomes visible again.
+  */
+  document.addEventListener(
+    'visibilitychange',
+    () => {
+      if (!document.hidden) {
+        forcePhotopeaRelayout();
+
+        /*
+          Delayed passes catch asynchronous tab restoration.
+        */
+        setTimeout(
+          forcePhotopeaRelayout,
+          150
+        );
+
+        setTimeout(
+          forcePhotopeaRelayout,
+          500
+        );
+      }
+    }
+  );
+
+
+  /*
+    Reinforce when focus returns to the browser window.
+  */
+  window.addEventListener(
+    'focus',
+    () => {
+      forcePhotopeaRelayout();
+
+      setTimeout(
+        forcePhotopeaRelayout,
+        100
+      );
+    }
+  );
+
+
+  /* ============================================================
+     REAL VIEWPORT CHANGES
+     ============================================================ */
+
+  /*
+    Listen to the real visual viewport when supported.
+
+    This catches actual browser resizing without depending on our
+    spoofed window.innerWidth.
+  */
+  try {
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener(
+        'resize',
+        forcePhotopeaRelayout,
+        { passive: true }
+      );
+    }
+  } catch (e) {}
+
+
+  /* ============================================================
+     SPOOF INTEGRITY WATCHDOG
+     ============================================================ */
+
+  /*
+    Once every three seconds, verify that our innerWidth getter
+    still exists.
+
+    When everything is healthy, this does absolutely nothing.
+
+    If another script replaces the property during a long Photopea
+    session, the working spoof is restored automatically.
+  */
+  setInterval(
+    () => {
+      try {
+        const descriptor =
+          Object.getOwnPropertyDescriptor(
+            window,
+            'innerWidth'
+          );
+
+
+        const spoofStillInstalled =
+          descriptor &&
+          typeof descriptor.get === 'function' &&
+          descriptor.get.__ptfSpoof;
+
+
+        if (!spoofStillInstalled) {
+          console.log(
+            '[ptf] innerWidth spoof was replaced — restoring it.'
+          );
+
+          forcePhotopeaRelayout();
+        }
+
+      } catch (e) {}
+    },
+    3000
+  );
+
+
+  /* ============================================================
+     PHOTOPEA SOURCE-CODE WARNING SUPPRESSION
+     ============================================================ */
+
+  /*
+    This targets ONLY the specific Photopea warning:
+
+    "Something is changing our source code ..."
+    "Many features will not work correctly."
+
+    Other Photopea notifications, errors, dialogs and warnings
+    are not intentionally affected.
+  */
+
+  const SOURCE_WARNING_START =
+    'Something is changing our source code';
+
+  const SOURCE_WARNING_END =
+    'Many features will not work correctly';
+
+
+  function normalizeText(value) {
+    return String(value || '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+
+  function isSourceCodeWarningText(value) {
+    const text =
+      normalizeText(value);
+
+
+    /*
+      Requiring both distinctive portions keeps the match specific.
+    */
+    return (
+      text.length > 0 &&
+      text.length < 300 &&
+      text.includes(SOURCE_WARNING_START) &&
+      text.includes(SOURCE_WARNING_END)
+    );
+  }
+
+
+  /* ============================================================
+     LOCATE THE WARNING CONTAINER
+     ============================================================ */
+
+  function findBestWarningContainer(element) {
+    let target =
+      element;
+
+    let current =
+      element;
+
+
+    const originalText =
+      normalizeText(
+        element.textContent
+      );
+
+
+    /*
+      Walk upward only through a few small wrappers which still
+      contain essentially nothing except the warning.
+
+      This prevents the script from accidentally removing a large
+      Photopea interface container.
+    */
+    for (
+      let depth = 0;
+      depth < 8;
+      depth++
+    ) {
+
+      const parent =
+        current.parentElement;
+
+
+      if (
+        !parent ||
+        parent === document.documentElement ||
+        parent === document.body
+      ) {
+        break;
+      }
+
+
+      const parentText =
+        normalizeText(
+          parent.textContent
+        );
+
+
+      /*
+        Stop as soon as the parent contains unrelated text.
+      */
+      if (
+        !isSourceCodeWarningText(parentText) ||
+        parentText.length > originalText.length + 20
+      ) {
+        break;
+      }
+
+
+      let reasonableSize =
+        true;
+
+
+      try {
+        const rect =
+          parent.getBoundingClientRect();
+
+
+        /*
+          A warning wrapper should never occupy a huge portion of
+          the application's vertical interface.
+        */
+        if (
+          rect.height > 250 ||
+          rect.width <= 0 ||
+          rect.height <= 0
+        ) {
+          reasonableSize = false;
+        }
+
+      } catch (e) {}
+
+
+      if (!reasonableSize) {
+        break;
+      }
+
+
+      target =
+        parent;
+
+      current =
+        parent;
+    }
+
+
+    return target;
+  }
+
+
+  /* ============================================================
+     REMOVE THE WARNING
+     ============================================================ */
+
+  function removeSourceCodeWarningFromElement(element) {
+    if (!(element instanceof Element)) {
+      return false;
+    }
+
+
+    /*
+      Fast rejection.
+
+      Most mutations have nothing to do with our warning, so avoid
+      searching their descendants unnecessarily.
+    */
+    const subtreeText =
+      normalizeText(
+        element.textContent
+      );
+
+
+    if (
+      !subtreeText.includes(
+        SOURCE_WARNING_START
+      )
+    ) {
+      return false;
+    }
+
+
+    const candidates = [
+      element
+    ];
+
+
+    /*
+      Search only the relevant subtree rather than the entire page.
+    */
+    try {
+      candidates.push(
+        ...element.querySelectorAll(
+          'div, span, p'
+        )
+      );
+    } catch (e) {}
+
+
+    for (
+      const candidate of candidates
+    ) {
+
+      if (
+        !(candidate instanceof HTMLElement)
+      ) {
+        continue;
+      }
+
+
+      if (
+        !isSourceCodeWarningText(
+          candidate.textContent
+        )
+      ) {
+        continue;
+      }
+
+
+      const target =
+        findBestWarningContainer(
+          candidate
+        );
+
+
+      /*
+        Final safety check immediately before removal.
+      */
+      if (
+        target &&
+        isSourceCodeWarningText(
+          target.textContent
+        )
+      ) {
+
+        try {
+          target.remove();
+
+          console.log(
+            '[ptf] Suppressed Photopea source-code warning.'
+          );
+
+          return true;
+
+        } catch (e) {}
+      }
+    }
+
+
+    return false;
+  }
+
+
+  /* ============================================================
+     INITIAL WARNING SCAN
+     ============================================================ */
+
+  function removeExistingSourceCodeWarnings() {
+    try {
+      const elements =
+        document.querySelectorAll(
+          'div, span, p'
+        );
+
+
+      for (
+        const element of elements
+      ) {
+
+        if (
+          isSourceCodeWarningText(
+            element.textContent
+          )
+        ) {
+
+          removeSourceCodeWarningFromElement(
+            element
+          );
+        }
+      }
+
     } catch (e) {}
   }
-  applySpoof();
-  document.addEventListener('DOMContentLoaded', applySpoof, { once: true });
 
-  /* THEME HELPERS */
-  function getSavedThemeId() { try { return localStorage.getItem(THEME_KEY); } catch (e) { return null; } }
-  function saveThemeId(id)   { try { localStorage.setItem(THEME_KEY, id); }   catch (e) {} }
-  function findThemeById(id) { return THEMES.find(t => t.id === id) || THEMES[0]; }
-  function applyTheme(theme) {
-    const root = document.documentElement;
-    Object.entries(theme.vars).forEach(([k, v]) => root.style.setProperty(k, v));
-    root.setAttribute('data-ptf-theme', theme.id);
-    updateMenuActive(theme.id);
+
+  /* ============================================================
+     WARNING OBSERVER
+     ============================================================ */
+
+  let warningSuppressorStarted =
+    false;
+
+
+  const warningObserver =
+    new MutationObserver(
+      mutations => {
+
+        for (
+          const mutation of mutations
+        ) {
+
+          /*
+            Catch newly-created warning elements.
+          */
+          if (
+            mutation.type === 'childList'
+          ) {
+
+            for (
+              const node of mutation.addedNodes
+            ) {
+
+              if (
+                node.nodeType === Node.ELEMENT_NODE
+              ) {
+
+                removeSourceCodeWarningFromElement(
+                  node
+                );
+
+              } else if (
+                node.nodeType === Node.TEXT_NODE &&
+                node.parentElement
+              ) {
+
+                removeSourceCodeWarningFromElement(
+                  node.parentElement
+                );
+              }
+            }
+          }
+
+
+          /*
+            Catch cases where Photopea creates the element first,
+            then fills or modifies its text afterward.
+          */
+          if (
+            mutation.type === 'characterData' &&
+            mutation.target.parentElement
+          ) {
+
+            removeSourceCodeWarningFromElement(
+              mutation.target.parentElement
+            );
+          }
+        }
+      }
+    );
+
+
+  function startWarningSuppressor() {
+    if (
+      warningSuppressorStarted ||
+      !document.documentElement
+    ) {
+      return;
+    }
+
+
+    warningSuppressorStarted =
+      true;
+
+
+    /*
+      Catch a warning that appeared before the observer started.
+    */
+    removeExistingSourceCodeWarnings();
+
+
+    /*
+      Catch future copies as Photopea creates them.
+    */
+    warningObserver.observe(
+      document.documentElement,
+      {
+        childList: true,
+        subtree: true,
+        characterData: true
+      }
+    );
   }
 
-  /* STYLES */
-  const css = `
-:root { --bubble-size:44px; --bubble-gap:14px; --menu-minw:170px; }
 
-.panelblock, .left-panel, .right-panel, .tools-panel, .topbar, .toolbar, .rightbar {
-  background: var(--pp-panel) !important;
-  color: var(--pp-text) !important;
-  border-color: var(--pp-border) !important;
-  box-shadow: var(--pp-shadow) !important;
-}
+  /*
+    Begin warning suppression as early as possible.
+  */
+  if (
+    document.documentElement
+  ) {
 
-#ptf-bubble-eye {
-  position:fixed; left:var(--bubble-gap); bottom:var(--bubble-gap);
-  z-index:2147483648; width:var(--bubble-size); height:var(--bubble-size);
-  border-radius:999px; display:inline-flex; align-items:center; justify-content:center;
-  cursor:pointer;
-  background:linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02));
-  border:1px solid rgba(255,255,255,0.04);
-  box-shadow:0 14px 40px rgba(0,0,0,0.5),0 1px 0 rgba(255,255,255,0.03) inset;
-  transition:transform .16s,box-shadow .16s; backdrop-filter:blur(4px);
-}
-#ptf-bubble-eye:hover { transform:translateY(-3px) scale(1.03); box-shadow:0 18px 48px rgba(0,0,0,0.55); }
-#ptf-bubble-eye svg { width:22px; height:22px; stroke:var(--pp-text,#fff); fill:none; stroke-width:1.6; }
+    startWarningSuppressor();
 
-#ptf-bubble-menu {
-  position:fixed; left:var(--bubble-gap);
-  bottom:calc(var(--bubble-gap) + var(--bubble-size) + 8px);
-  z-index:2147483648; min-width:var(--menu-minw); border-radius:14px; padding:8px;
-  background:linear-gradient(180deg,rgba(255,255,255,0.015),rgba(255,255,255,0.01));
-  border:1px solid rgba(255,255,255,0.04); box-shadow:0 22px 60px rgba(0,0,0,0.6);
-  transform-origin:left bottom; opacity:0; transform:scale(.98) translateY(6px);
-  pointer-events:none;
-  transition:opacity .2s cubic-bezier(.2,.9,.2,1),transform .2s cubic-bezier(.2,.9,.2,1);
-  backdrop-filter:blur(6px);
-}
-#ptf-bubble-menu.visible { opacity:1; transform:scale(1) translateY(0); pointer-events:auto; }
-#ptf-bubble-menu .item { display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:10px; margin:6px 4px; cursor:pointer; transition:background .14s,transform .12s; }
-#ptf-bubble-menu .item:hover { background:rgba(255,255,255,0.02); transform:translateY(-2px); }
-#ptf-bubble-menu .dot { width:12px; height:12px; border-radius:50%; flex-shrink:0; box-shadow:0 2px 6px rgba(0,0,0,0.35) inset; }
-#ptf-bubble-menu .label { font-size:13px; color:var(--pp-text,#fff); font-weight:700; letter-spacing:.3px; }
-#ptf-bubble-menu .item.active { outline:2px solid rgba(255,255,255,0.03); box-shadow:0 6px 18px rgba(0,0,0,0.4) inset; background:rgba(255,255,255,0.01); }
-#ptf-bubble-menu .foot { font-size:11px; color:var(--pp-muted,#888); padding:6px 8px; text-align:center; opacity:.9; }
+  } else {
 
-@media (max-width:520px) {
-  #ptf-bubble-menu { left:10px; right:10px; min-width:auto; }
-  #ptf-bubble-eye  { left:10px; bottom:10px; }
-}
-`;
-  const styleEl = document.createElement('style');
-  styleEl.textContent = css;
-  (document.head || document.documentElement).appendChild(styleEl);
-
-  /* BUBBLE UI */
-  let bubbleCreated = false;
-  function showBubbleMenu() { const m = document.getElementById('ptf-bubble-menu'); if (m) { m.classList.add('visible'); m.setAttribute('aria-hidden','false'); } }
-  function hideBubbleMenu() { const m = document.getElementById('ptf-bubble-menu'); if (m) { m.classList.remove('visible'); m.setAttribute('aria-hidden','true'); } }
-  function toggleBubbleMenu() { const m = document.getElementById('ptf-bubble-menu'); if (!m) return; m.classList.contains('visible') ? hideBubbleMenu() : showBubbleMenu(); }
-  function updateMenuActive(themeId) {
-    const menu = document.getElementById('ptf-bubble-menu');
-    if (!menu) return;
-    menu.querySelectorAll('.item').forEach(it => {
-      it.dataset.themeId === themeId ? it.classList.add('active') : it.classList.remove('active');
-    });
-  }
-  function createBubbleUI() {
-    if (bubbleCreated) return;
-    bubbleCreated = true;
-    const eye = document.createElement('button');
-    eye.id = 'ptf-bubble-eye'; eye.type = 'button'; eye.title = 'Themes';
-    eye.setAttribute('aria-label', 'Show theme menu');
-    eye.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
-    document.documentElement.appendChild(eye);
-    const menu = document.createElement('div');
-    menu.id = 'ptf-bubble-menu'; menu.setAttribute('aria-hidden', 'true');
-    THEMES.forEach(t => {
-      const item = document.createElement('div');
-      item.className = 'item'; item.setAttribute('role','button'); item.setAttribute('tabindex','0'); item.dataset.themeId = t.id;
-      const dot = document.createElement('span'); dot.className = 'dot'; dot.style.background = t.vars['--pp-accent'] || '#888';
-      const label = document.createElement('span'); label.className = 'label'; label.textContent = t.name;
-      item.appendChild(dot); item.appendChild(label);
-      item.addEventListener('click', () => { applyTheme(t); saveThemeId(t.id); hideBubbleMenu(); }, { passive: true });
-      item.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); item.click(); } });
-      menu.appendChild(item);
-    });
-    const foot = document.createElement('div'); foot.className = 'foot'; foot.textContent = 'Click a theme to apply • Click eye to close';
-    menu.appendChild(foot);
-    document.documentElement.appendChild(menu);
-    eye.addEventListener('click', ev => { ev.stopPropagation(); toggleBubbleMenu(); }, { passive: true });
-    document.addEventListener('click', ev => {
-      const m = document.getElementById('ptf-bubble-menu'); const b = document.getElementById('ptf-bubble-eye');
-      if (m && b && m.classList.contains('visible') && !m.contains(ev.target) && !b.contains(ev.target)) hideBubbleMenu();
-    });
-    document.addEventListener('keydown', ev => { if (ev.key === 'Escape') hideBubbleMenu(); });
-    updateMenuActive(getSavedThemeId() || THEMES[0].id);
+    document.addEventListener(
+      'DOMContentLoaded',
+      startWarningSuppressor,
+      { once: true }
+    );
   }
 
-  /* INIT */
+
+  /* ============================================================
+     INITIALIZATION
+     ============================================================ */
+
+  let initialized =
+    false;
+
+
   function init() {
-    applyTheme(findThemeById(getSavedThemeId()));
-    createBubbleUI();
-    console.log('%c[ptf] Photopea True Fullscreen v1.2.1 — spoof + themes, zero DOM interference.', 'color:#ff7a00;font-weight:bold;');
+    if (initialized) {
+      return;
+    }
+
+
+    initialized =
+      true;
+
+
+    /*
+      One final fullscreen reinforcement once the DOM is usable.
+    */
+    forcePhotopeaRelayout();
+
+
+    /*
+      Ensure warning suppression is running.
+    */
+    startWarningSuppressor();
+
+
+    /* ==========================================================
+       DIAGNOSTICS
+       ========================================================== */
+
+    try {
+      console.log(
+        '%c[ptf] Photopea True Fullscreen v1.4.0 — fullscreen-only, Edge-hardened, warning suppression active.',
+        'color:#ff7a00;font-weight:bold;'
+      );
+
+
+      console.log(
+        '[ptf] viewport:',
+        {
+          reportedInnerWidth:
+            window.innerWidth,
+
+          realClientWidth:
+            document.documentElement.clientWidth,
+
+          visualViewportWidth:
+            window.visualViewport
+              ? window.visualViewport.width
+              : null,
+
+          spoofDifference:
+            window.innerWidth -
+            document.documentElement.clientWidth
+        }
+      );
+
+    } catch (e) {}
   }
-  if (document.readyState === 'complete' || document.readyState === 'interactive') requestAnimationFrame(init);
-  else window.addEventListener('DOMContentLoaded', () => requestAnimationFrame(init), { once: true });
+
+
+  /*
+    Initialize as soon as the document is ready enough.
+  */
+  if (
+    document.readyState === 'complete' ||
+    document.readyState === 'interactive'
+  ) {
+
+    requestAnimationFrame(
+      init
+    );
+
+  } else {
+
+    window.addEventListener(
+      'DOMContentLoaded',
+      () => {
+        requestAnimationFrame(
+          init
+        );
+      },
+      { once: true }
+    );
+  }
 
 })();
