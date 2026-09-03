@@ -12,7 +12,6 @@
 // @inject-into  page
 // @noframes
 // @license      MIT
-// @icon         https://www.photopea.com/promo/icon512.png
 // @downloadURL  https://update.greasyfork.org/scripts/567062/Photopea%20True%20Fullscreen.user.js
 // @updateURL    https://update.greasyfork.org/scripts/567062/Photopea%20True%20Fullscreen.meta.js
 // ==/UserScript==
